@@ -1,0 +1,19 @@
+# This repo is the reusable toolkit only. Book-specific output from actually
+# using it (dropped PDFs, generated notes/diagrams/quizzes/practice, progress
+# trackers) belongs to the project you build *with* this toolkit, not here.
+*.pdf
+notes/
+quizzes/
+practice/
+reviews/
+progress.md
+
+# Personal permission grants, not part of the toolkit
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc
+
+# OS cruft
+.DS_Store

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 scripts/ocr_page.py:*)",
+      "Bash(python3 scripts/page_count.py:*)",
+      "Bash(python3 practice/:*)",
+      "Bash(python3 -m pytest practice/:*)",
+      "Edit(notes/**)",
+      "Edit(quizzes/**)",
+      "Edit(practice/**)",
+      "Edit(reviews/**)",
+      "Edit(progress.md)"
+    ]
+  }
+}
