@@ -30,11 +30,18 @@ Task names one chapter, or no chapter at all (meaning "the next one").
    guess — just invoke `learn-chapter` without an explicit chapter
    argument and let it fall back to the next chapter in `progress.md`
    missing notes.
-2. Invoke the `learn-chapter` skill for that chapter. Wait for it to
-   finish.
+2. Note the start time (`date -Iseconds` via Bash), then invoke the
+   `learn-chapter` skill for that chapter. Wait for it to finish.
 3. Invoke the `diagram-chapter` skill for the same chapter. Wait for it to
-   finish.
-4. Report back briefly: which chapter, and that `notes/NN-slug.md` and
+   finish. If either skill fails to complete — errors out, or can't
+   produce its file — don't silently report success: say plainly what
+   failed and stop here rather than guessing at partial state.
+4. **Log the run.** Create `logs/` if it doesn't exist. Append one line to
+   `logs/study-chapter.log`: start timestamp, chapter number, which skills
+   ran and their outcome (`ok` or `failed(<short reason>)`), and elapsed
+   time. One line, not a full trace — enough to answer "what ran and how
+   long did it take" without re-reading the conversation.
+5. Report back briefly: which chapter, and that `notes/NN-slug.md` and
    `notes/NN-slug-diagrams.md` are both ready. Don't repeat the full notes
    or diagram content — the files are the deliverable, not the report.
 
@@ -57,23 +64,48 @@ going from where we left off").
    everything already finished and pick up exactly where it left off,
    because `progress.md` is read fresh each time, not assumed from memory.
 
-3. **Process chapters one at a time, in order.** For each chapter still
-   needing work: run `learn-chapter` for it if `Notes` is empty, then run
-   `diagram-chapter` for it if `Diagrams` is empty. Each skill call updates
-   `progress.md` itself as soon as it finishes — don't batch the progress
-   updates until the end, since the whole point is that an interruption
-   mid-run (the user can stop you at any time the normal way) still leaves
-   `progress.md` accurate for everything completed so far.
+3. **Process chapters one at a time, in order, with bounded retry.** For
+   each chapter still needing work: note the start time, then run
+   `learn-chapter` for it if `Notes` is empty, then run `diagram-chapter`
+   for it if `Diagrams` is empty. Each skill call updates `progress.md`
+   itself as soon as it finishes — don't batch the progress updates until
+   the end, since the whole point is that an interruption mid-run (the
+   user can stop you at any time the normal way) still leaves `progress.md`
+   accurate for everything completed so far.
 
-4. Between chapters, give a short one-line status update (e.g. "Chapter 6
-   done — notes + diagrams. Moving to chapter 7.") rather than staying
-   silent for the whole batch — this is what lets the user tell the batch
-   is progressing and decide if they want to stop it.
+   - If a step fails, retry it once.
+   - If it fails a second time, treat this chapter as failed for the run:
+     `progress.md` already reflects that honestly (its date columns stay
+     empty), so don't try to patch it — just log the failure (step 4),
+     note it plainly in the next status update, and move on to the next
+     chapter. One bad chapter (an illegible page, a transient write issue)
+     shouldn't block chapters that would otherwise succeed.
+   - **Exception — stop the whole batch** if two chapters in a row fail.
+     Two consecutive failures is a signal something structural is wrong (a
+     bad page-map offset, a missing file, a broken environment), not noise
+     from one unlucky chapter — continuing would just repeat the same
+     mistake through the rest of the target set. Report what failed and
+     why, and let the user decide how to proceed.
 
-5. When every chapter in the target set is done (or you've reached the end
-   of the book), give a brief final summary: how many chapters were
-   processed, how many were already done and skipped, and point to
-   `progress.md` for the full picture.
+4. **Log each chapter.** Create `logs/` if it doesn't exist. After each
+   chapter finishes (succeeds, or fails for the second time), append one
+   line to `logs/study-chapter.log`: start timestamp, chapter number,
+   which skills ran and their outcome (`ok` or `failed(<short reason>)`),
+   and elapsed time.
+
+5. Between chapters, give a short one-line status update (e.g. "Chapter 6
+   done — notes + diagrams. Moving to chapter 7." or "Chapter 9 failed
+   twice (diagram-chapter: malformed Mermaid output) — logged, moving to
+   chapter 10.") rather than staying silent for the whole batch — this is
+   what lets the user tell the batch is progressing and decide if they
+   want to stop it.
+
+6. When every chapter in the target set is done (or you've reached the end
+   of the book, or the batch stopped on consecutive failures), give a
+   brief final summary: how many chapters were processed, how many
+   succeeded, how many failed (and which, briefly why), how many were
+   already done and skipped, and point to `progress.md` and
+   `logs/study-chapter.log` for the full picture.
 
 In both modes: do not run `quiz-chapter` or `practice-chapter` — those stay
 separate, user-triggered steps on their own schedule, never bundled into

@@ -20,7 +20,7 @@ project directory.
    none, ask the user which file to use rather than guessing.
 
 2. **Create the project folders** (if missing): `notes/`, `quizzes/`,
-   `practice/`, `reviews/`, `scripts/`.
+   `practice/`, `reviews/`, `scripts/`, `logs/`.
 
 3. **Check the helper scripts** are present: `scripts/page_count.py` (used
    in step 6) and `scripts/ocr_page.py` (the fallback for when a rendered

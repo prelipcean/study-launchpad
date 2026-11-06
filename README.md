@@ -84,6 +84,71 @@ Each skill updates `progress.md` itself as it finishes, so it's always an
 accurate picture of what's done — nothing here guesses from the
 conversation; it re-reads the file fresh each time.
 
+## Architecture
+
+What this repo actually is, in the vocabulary the toolkit itself teaches
+(this is a book-study toolkit, so it's fitting that its own design maps
+onto the architecture patterns from the books it's used to study — agent
+loops, orchestrators, memory layers, tools).
+
+```mermaid
+flowchart TB
+  USER[You] -->|"/plan-book, /learn-chapter,<br/>/quiz-chapter, etc."| CC
+  USER -->|"'study chapter 5' /<br/>'continue through the book'"| ORCH
+
+  subgraph CC["Claude Code session<br/>(reasoning AND execution — see note below)"]
+    direction TB
+    SKILLS["Skills — procedure layer<br/>plan-book · learn-chapter · diagram-chapter<br/>quiz-chapter · practice-chapter<br/>review-book · synthesize-book · study-status"]
+    ORCH["study-chapter agent<br/>(orchestrator, coordinator-worker pattern)"]
+    ORCH -->|invokes| SKILLS
+  end
+
+  CC -->|Read tool| PDF[("Book PDF<br/>(read directly, not a RAG pipeline)")]
+  CC -->|Bash| TOOLS["scripts/<br/>ocr_page.py · page_count.py<br/>(narrow, deterministic tools)"]
+  CC <-->|read fresh every run, never<br/>carried in conversation| STATE
+
+  subgraph STATE["Memory layer — persists outside conversation"]
+    PROGRESS["progress.md<br/>(tracker)"]
+    MAP["notes/00-toc-page-map.md<br/>(chapter -> page ranges)"]
+    OUT["notes/ · quizzes/ · practice/ · reviews/<br/>(output artifacts)"]
+    LOG["logs/study-chapter.log<br/>(lightweight observability —<br/>supplementary, not load-bearing)"]
+  end
+```
+
+The honest part of this diagram is the top box: unlike the production agent
+patterns this toolkit's skills teach you to build, there's no separate
+component validating a skill's output before it's committed — the same
+Claude Code session that interprets a skill's instructions is also the one
+writing the file. That's a deliberate, acknowledged trade-off for a small
+prose-driven toolkit (see "Verifying a change" in `CLAUDE.md`), not an
+oversight — but it's worth naming rather than implying a control boundary
+that isn't actually there.
+
+`study-chapter`'s batch mode is the one place with a real multi-step loop,
+so it's the one place that needed an explicit failure policy, not just a
+stopping condition:
+
+```mermaid
+flowchart TD
+  START["Next chapter in target set"] --> RUN["Run learn-chapter,<br/>then diagram-chapter"]
+  RUN -->|ok| LOGOK["Log: ok + elapsed time"]
+  RUN -->|fails| RETRY["Retry once"]
+  RETRY -->|ok| LOGOK
+  RETRY -->|fails again| LOGFAIL["Log: failed(reason)"]
+  LOGOK --> NEXT{"More chapters<br/>remaining?"}
+  LOGFAIL --> STREAK{"2nd consecutive<br/>failure?"}
+  STREAK -->|yes| STOP["Stop the batch,<br/>report what failed"]
+  STREAK -->|no| NEXT
+  NEXT -->|yes| START
+  NEXT -->|no| DONE["Final summary:<br/>processed / skipped / failed"]
+```
+
+One bad chapter (an illegible page, a transient write issue) shouldn't
+block the rest of a 14-chapter batch — but two in a row is treated as a
+structural signal (a bad page-map offset, a broken environment) worth
+stopping for, rather than burning through the remaining chapters repeating
+the same failure.
+
 ## Design notes
 
 - **Everything is book-agnostic.** No book title, page count, or path is

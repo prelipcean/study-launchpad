@@ -33,6 +33,13 @@ project, and both formats are load-bearing:
 State is always **re-read from these files**, never carried in conversation.
 That's what makes an interrupted batch resumable.
 
+- **`logs/study-chapter.log`** — supplementary, not load-bearing. One line
+  per chapter the `study-chapter` agent processes (timestamp, chapter,
+  per-skill outcome, elapsed time). Nothing reads this file back to decide
+  behavior — `progress.md` stays the only source of truth for what's done.
+  It exists purely so a long batch run leaves evidence of what happened and
+  roughly how long it took, instead of only the conversation transcript.
+
 ## Conventions when editing skills
 
 - **PDF reading** goes through the `Read` tool with `pages` — it renders pages
@@ -50,6 +57,14 @@ That's what makes an interrupted batch resumable.
   An exercise that needs a dependency is too big; shrink it.
 - **A skill writes the files its own steps name, and stops there.** Skills end
   by *suggesting* the next command, never by running it.
+- **A loop needs a failure policy, not just a stopping condition.**
+  `study-chapter`'s batch mode retries a failed step once, then logs and
+  skips that chapter rather than letting one bad chapter block the rest —
+  but stops the whole batch if two chapters fail in a row, since that's a
+  signal something structural broke, not noise from one unlucky chapter.
+  Any future loop (another batch-style skill, a multi-step skill) should
+  have an equally explicit answer to "what happens when a step fails
+  twice," not just "what happens when the work runs out."
 
 ## Agent tool permissions
 
